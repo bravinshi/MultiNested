@@ -4,23 +4,17 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.view.NestedScrollingChild2;
-import android.support.v4.view.NestedScrollingParent;
 import android.support.v4.view.NestedScrollingParent2;
-import android.support.v4.view.ScrollingView;
-import android.support.v4.widget.NestedScrollView;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.ViewParent;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import bravin.shi.com.multinested.utils.ScreenUtils;
-import bravin.shi.com.multinested.utils.SizeUtils;
 
 /**
  * created by bravin on 2018/7/5.
@@ -44,6 +38,7 @@ public class MultiNestedParentLayout extends LinearLayout implements
     public MultiNestedParentLayout(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         screenHeight = ScreenUtils.getScreenHeight();
+        Log.d(TAG, "screenHeight: " + screenHeight);
         setOrientation(VERTICAL);
     }
 
@@ -55,6 +50,34 @@ public class MultiNestedParentLayout extends LinearLayout implements
         nestedChildren.clear();
         final int parentHeightMode = MeasureSpec.getMode(heightMeasureSpec);
         final int parentHeight = MeasureSpec.getSize(heightMeasureSpec);
+
+        int tempHeight = parentHeight;
+        if (parentHeightMode == MeasureSpec.EXACTLY
+                || parentHeightMode == MeasureSpec.UNSPECIFIED) {
+            // 循环测量父布局避免可滚动的child大小超过屏幕大小
+            boolean hasParent = true;
+            while (hasParent){
+                if (tempHeight > 0 && tempHeight <= screenHeight){
+                    hasParent = false;
+                }else {
+                    ViewParent viewParent = getParent();
+                    if (viewParent != null){
+                        View parent = (View) viewParent;
+                        tempHeight = parent.getMeasuredHeight();
+                    }else {
+                        tempHeight = screenHeight;
+                        hasParent = false;
+                    }
+                }
+            }
+        }else {
+            if (tempHeight > screenHeight){
+                tempHeight = screenHeight;
+            }
+        }
+        int childHeightMeasureSpec =
+                MeasureSpec.makeMeasureSpec(tempHeight, MeasureSpec.AT_MOST);
+
         for (int i = 0; i < count;i++){
             View child = getChildAt(i);
             if (child == null) {
@@ -67,38 +90,20 @@ public class MultiNestedParentLayout extends LinearLayout implements
             if (child instanceof NestedScrollingChild2) {
                 nestedChildren.add((NestedScrollingChild2) child);
             }
-            int tempHeight = parentHeight;
-            if (parentHeightMode == MeasureSpec.EXACTLY
-                    || parentHeightMode == MeasureSpec.UNSPECIFIED) {
-                // 循环测量父布局避免可滚动的child大小超过屏幕大小
-                boolean hasParent = true;
-                while (hasParent){
-                    if (tempHeight > 0 && tempHeight <= screenHeight){
-                        hasParent = false;
-                    }else {
-                        ViewParent viewParent = getParent();
-                        if (viewParent != null){
-                            View parent = (View) viewParent;
-                            tempHeight = parent.getMeasuredHeight();
-                        }else {
-                            tempHeight = screenHeight;
-                            hasParent = false;
-                        }
-                    }
-                }
+            final LayoutParams lp = (LayoutParams) child.getLayoutParams();
+            int tempMS;
+            if (lp.height > 0){
+                tempMS = MeasureSpec.makeMeasureSpec(lp.height, MeasureSpec.EXACTLY);
+                child.measure(widthMeasureSpec, tempMS);
             }else {
-                if (tempHeight > screenHeight){
-                    tempHeight = screenHeight;
-                }
+                child.measure(widthMeasureSpec, childHeightMeasureSpec);
             }
-            int childHeightMeasureSpec =
-                    MeasureSpec.makeMeasureSpec(tempHeight, MeasureSpec.AT_MOST);
-            child.measure(widthMeasureSpec, childHeightMeasureSpec);
             final int childHeight = child.getMeasuredHeight();
             Log.d(TAG, "childHeight: " + childHeight);
-            final LayoutParams lp = (LayoutParams) child.getLayoutParams();
+
             mTotalLength += childHeight + lp.topMargin + lp.bottomMargin;
         }
+        Log.d(TAG, "mTotalLength1: " + mTotalLength);
 
         if (parentHeightMode == MeasureSpec.EXACTLY
                 || parentHeightMode == MeasureSpec.AT_MOST){
@@ -106,6 +111,7 @@ public class MultiNestedParentLayout extends LinearLayout implements
                 mTotalLength = parentHeight;
             }
         }
+        Log.d(TAG, "mTotalLength2: " + mTotalLength);
 
         heightMeasureSpec = MeasureSpec.makeMeasureSpec(mTotalLength, MeasureSpec.AT_MOST);
         setMeasuredDimension(widthMeasureSpec, heightMeasureSpec);
