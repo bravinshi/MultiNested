@@ -36,7 +36,7 @@ public class ContentAdapter1 extends SimpleRecyclerViewAdapter<DataBean> {
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         count++;
-        Log.d(TAG, "ContentAdapter1 " + count);
+//        Log.d(TAG, "ContentAdapter1 " + count);
         LayoutInflater layoutInflater = LayoutInflater.from(context);
         View view = layoutInflater.inflate(R.layout.content_item, parent, false);
         return new ContentViewHolder(view);

@@ -1,8 +1,10 @@
 package bravin.shi.com.multinested;
 
 import android.content.Context;
+import android.os.Build;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.v4.view.NestedScrollingChild2;
 import android.support.v4.view.NestedScrollingParent2;
@@ -61,7 +63,6 @@ public class MultiNestedParentLayout extends LinearLayout implements
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int mTotalLength = getPaddingTop() + getPaddingBottom();
         final int count = getChildCount();
-        Log.d(TAG, "children count: " + count);
         nestedChildren.clear();
         scrollingChildren.clear();
         final int parentHeightMode = MeasureSpec.getMode(heightMeasureSpec);
@@ -144,7 +145,6 @@ public class MultiNestedParentLayout extends LinearLayout implements
     @Override
     public boolean onStartNestedScroll(@NonNull View child, @NonNull View target,
                                        int axes, int type) {
-        Log.d(TAG1, "onStartNestedScroll");
         return type == ViewCompat.TYPE_TOUCH
                 && (axes & ViewCompat.SCROLL_AXIS_VERTICAL) != 0 && canScroll();
     }
@@ -152,24 +152,20 @@ public class MultiNestedParentLayout extends LinearLayout implements
     @Override
     public void onNestedScrollAccepted(@NonNull View child, @NonNull View target,
                                        int axes, int type) {
-        Log.d(TAG1, "onNestedScrollAccepted");
     }
 
     @Override
     public void onStopNestedScroll(@NonNull View target, int type) {
-        Log.d(TAG1, "onStopNestedScroll");
     }
 
     @Override
     public void onNestedScroll(@NonNull View target, int dxConsumed, int dyConsumed,
                                int dxUnconsumed, int dyUnconsumed, int type) {
-        Log.d(TAG1, "onNestedScroll");
     }
 
     @Override
     public void onNestedPreScroll(@NonNull View target, int dx, int dy,
                                   @NonNull int[] consumed, int type) {
-        Log.d(TAG1, "onNestedPreScroll");
         // 可以改成支持滑动 这样就成了可以滑动的LinearLayout
         if (scrollingChildren.size() == 0 || dy == 0) {
             return;
@@ -202,6 +198,7 @@ public class MultiNestedParentLayout extends LinearLayout implements
      * @param skipNum
      */
     private void handleScrolling2Down(int consumed, int skipNum) {
+        Log.d(TAG1, "consumed: " + consumed);
 
         final int count = getChildCount();
         if (skipNum >= count || consumed <= 0) {
@@ -218,16 +215,20 @@ public class MultiNestedParentLayout extends LinearLayout implements
             if (!layoutParams.isScrollingView()) {// 不是ScrollingView
                 if (bottomDifference >= consumed) {
                     virtualScrollBy(consumed);
-                } else if (bottomDifference > 0) {
+                    return;
+                } else if (bottomDifference >= 0) {
                     virtualScrollBy(bottomDifference);
                     handleScrolling2Down(consumed - bottomDifference, i + 1);
+                    break;
                 } else {
                     // 如果这个child显示已经在bottom最低点之上，直接跳过
                     handleScrolling2Down(consumed, i + 1);
+                    break;
                 }
             } else {// ScrollingView
                 if (bottomDifference >= consumed){
                     virtualScrollBy(consumed);
+                    return;
                 }else if (bottomDifference >= 0) {
                     virtualScrollBy(bottomDifference);// 先移动view 再考虑view内部
                     int rest = consumed - bottomDifference;
@@ -235,16 +236,20 @@ public class MultiNestedParentLayout extends LinearLayout implements
                         int canOffset = getViewOffsetDistanceToMax((ScrollingView) view);
                         if (canOffset >= rest){
                             virtualScrollBy(rest, (ScrollingView) view);
+                            return;
                         }else {
                             virtualScrollBy(canOffset, (ScrollingView) view);
                             handleScrolling2Down(rest - canOffset, i + 1);
+                            break;
                         }
                     }else {// 不可滚动时 直接跳过
                         handleScrolling2Down(consumed - bottomDifference, i + 1);
+                        break;
                     }
                 }else {
                     // 如果这个child显示已经在bottom最低点之上，直接跳过
                     handleScrolling2Down(consumed, i + 1);
+                    break;
                 }
             }
         }
@@ -254,40 +259,25 @@ public class MultiNestedParentLayout extends LinearLayout implements
         int distance = view.computeVerticalScrollRange() - view.computeVerticalScrollOffset();
         View v = (View) view;
         distance -= v.getPaddingTop() - v.getPaddingBottom() - v.getHeight();
-        Log.d(TAG1, "distance: " + distance);
-        return distance;
+        return Math.max(distance, 0);
     }
 
     private void virtualScrollBy(int dy) {
-        Log.d("aaa",getChildAt(0).getBottom() + "");
         scrollBy(0, dy);
         virtualOffsetY += dy;
-        post(new Runnable() {
-            @Override
-            public void run() {
-                Log.d("aaa",getChildAt(0).getBottom() + "");
-            }
-        });
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void virtualScrollBy(int dy, ScrollingView scrollingView) {
-        Log.d("aaa",getChildAt(0).getBottom() + " sv");
         View view = (View) scrollingView;
+        view.setNestedScrollingEnabled(false);
         view.scrollBy(0,dy);
+        view.setNestedScrollingEnabled(true);
         virtualOffsetY += dy;
-        post(new Runnable() {
-            @Override
-            public void run() {
-                Log.d("aaa",getChildAt(0).getBottom() + " sv");
-            }
-        });
     }
 
     private int viewToBottomDistance(View view) {
         final int bottom = getHeight() - getPaddingBottom();
-        Log.d(TAG, "bottom: " + bottom);
-        Log.d(TAG, "view.getBottom(): " + view.getBottom());
-        Log.d(TAG,  "viewToBottomDistance: " + (view.getBottom() - bottom));
         return view.getBottom() - bottom - getScrollY();
     }
 
