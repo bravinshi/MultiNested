@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="256dp" />
 
-    <android.support.v7.widget.RecyclerView
+    <bravin.shi.com.multinested.MultiRecyclerView
         android:id="@+id/rv1"
         android:background="@color/colorAccent"
         android:tag="1"

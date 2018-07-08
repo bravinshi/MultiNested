@@ -10,6 +10,7 @@ import android.support.v4.view.ScrollingView;
 import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -136,10 +137,14 @@ public class MultiNestedParentLayout extends LinearLayout implements
     }
 
     @Override
+    public boolean onTouchEvent(MotionEvent e) {
+        return super.onTouchEvent(e);
+    }
+
+    @Override
     public boolean onStartNestedScroll(@NonNull View child, @NonNull View target,
                                        int axes, int type) {
-        return type == ViewCompat.SCROLL_AXIS_VERTICAL
-                && (axes & ViewCompat.SCROLL_AXIS_VERTICAL) != 0 && canScroll();
+        return (axes & ViewCompat.SCROLL_AXIS_VERTICAL) != 0 && canScroll();
     }
 
     @Override
@@ -186,7 +191,7 @@ public class MultiNestedParentLayout extends LinearLayout implements
         consumed[1] = dy;
     }
 
-    private void handleScrolling2Top(int consumed, int skipNum){
+    private void handleScrolling2Top(int consumed, int skipNum) {
         final int count = getChildCount();
         if (skipNum >= count || consumed <= 0 || count == 0) {
             return;
@@ -199,40 +204,37 @@ public class MultiNestedParentLayout extends LinearLayout implements
             }
             final LayoutParams layoutParams = (LayoutParams) view.getLayoutParams();
             int topDifference = viewToTopDistance(view);
+            if (topDifference < 0) {// 一定有显示不完全的另一个View 直接跳过当前view
+                handleScrolling2Top(consumed, count - i);
+                break;
+            }
             if (topDifference >= consumed) {
                 virtualScrollBy(-consumed);// 直接向上滑动相应距离
                 return;
             }
+
             if (!layoutParams.isScrollingView()) {// 不是ScrollingView
-                if (topDifference >= 0){
-                    virtualScrollBy(-topDifference);// 向上滑动相应距离
-                    final int rest = consumed - topDifference;// 剩余要处理距离
-                    handleScrolling2Top(rest, count - i);
-                    break;
-                }else {
-                    handleScrolling2Top(consumed, count - i);
-                }
-            }else {// ScrollingView
-                if (topDifference >= 0){
-                    virtualScrollBy(-topDifference);// 向上滑动相应距离
-                    final int rest = consumed - topDifference;// 剩余要处理距离
-                    if (view.canScrollVertically(-1)){
-                        int canOffset = getViewMaxOffsetDistanceToTop((ScrollingView) view);
-                        if (canOffset >= rest){
-                            virtualScrollBy(-rest, (ScrollingView) view);
-                            return;
-                        }else {
-                            virtualScrollBy(-canOffset, (ScrollingView) view);
-                            // 继续处理剩余未处理dy : rest - canOffset
-                            handleScrolling2Top(rest - canOffset, count - i);
-                            break;
-                        }
-                    }else {
-                        handleScrolling2Top(rest, count - i);
+                virtualScrollBy(-topDifference);// 向上滑动相应距离
+                final int rest = consumed - topDifference;// 剩余要处理距离
+                handleScrolling2Top(rest, count - i);
+                break;
+            } else {// ScrollingView
+                virtualScrollBy(-topDifference);// 向上滑动相应距离
+                final int rest = consumed - topDifference;// 剩余要处理距离
+                if (view.canScrollVertically(-1)) {
+                    int canOffset = getViewMaxOffsetDistanceToTop((ScrollingView) view);
+                    if (canOffset >= rest) {
+                        virtualScrollBy(-rest, (ScrollingView) view);
+                        return;
+                    } else {
+                        virtualScrollBy(-canOffset, (ScrollingView) view);
+                        // 继续处理剩余未处理dy : rest - canOffset
+                        handleScrolling2Top(rest - canOffset, count - i);
                         break;
                     }
-                }else {
-                    handleScrolling2Top(consumed, count - i);
+                } else {
+                    handleScrolling2Top(rest, count - i);
+                    break;
                 }
             }
         }
@@ -260,43 +262,36 @@ public class MultiNestedParentLayout extends LinearLayout implements
             final LayoutParams layoutParams = (LayoutParams) view.getLayoutParams();
             int bottomDifference = viewToBottomDistance(view);
             if (bottomDifference >= 0 && bottomDifference <= 25) {
-                Log.d(TAG1,"bottomDifference = 0");
+                Log.d(TAG1, "bottomDifference = 0");
             }
-            if (bottomDifference >= consumed){
+            if (bottomDifference >= consumed) {
                 virtualScrollBy(consumed);
                 return;
             }
+            if (bottomDifference < 0) {
+                // 如果这个child显示已经在bottom最低点之上，直接跳过
+                handleScrolling2Bottom(consumed, i + 1);
+                break;
+            }
             if (!layoutParams.isScrollingView()) {// 不是ScrollingView
-                if (bottomDifference >= 0) {
-                    virtualScrollBy(bottomDifference);
-                    handleScrolling2Bottom(consumed - bottomDifference, i + 1);
-                    break;
-                } else {
-                    // 如果这个child显示已经在bottom最低点之上，直接跳过
-                    handleScrolling2Bottom(consumed, i + 1);
-                    break;
-                }
+                virtualScrollBy(bottomDifference);
+                handleScrolling2Bottom(consumed - bottomDifference, i + 1);
+                break;
             } else {// ScrollingView
-                if (bottomDifference >= 0) {
-                    virtualScrollBy(bottomDifference);// 先移动view 再考虑view内部
-                    int rest = consumed - bottomDifference;
-                    if (view.canScrollVertically(1)){
-                        int canOffset = getViewMaxOffsetDistanceToBottom((ScrollingView) view);
-                        if (canOffset >= rest){
-                            virtualScrollBy(rest, (ScrollingView) view);
-                            return;
-                        }else {
-                            virtualScrollBy(canOffset, (ScrollingView) view);
-                            handleScrolling2Bottom(rest - canOffset, i + 1);
-                            break;
-                        }
-                    }else {// 不可滚动时 直接跳过
-                        handleScrolling2Bottom(rest, i + 1);
+                virtualScrollBy(bottomDifference);// 先移动view 再考虑view内部
+                int rest = consumed - bottomDifference;
+                if (view.canScrollVertically(1)) {
+                    int canOffset = getViewMaxOffsetDistanceToBottom((ScrollingView) view);
+                    if (canOffset >= rest) {
+                        virtualScrollBy(rest, (ScrollingView) view);
+                        return;
+                    } else {
+                        virtualScrollBy(canOffset, (ScrollingView) view);
+                        handleScrolling2Bottom(rest - canOffset, i + 1);
                         break;
                     }
-                }else {
-                    // 如果这个child显示已经在bottom最低点之上，直接跳过
-                    handleScrolling2Bottom(consumed, i + 1);
+                } else {// 不可滚动时 直接跳过
+                    handleScrolling2Bottom(rest, i + 1);
                     break;
                 }
             }
@@ -309,7 +304,7 @@ public class MultiNestedParentLayout extends LinearLayout implements
      * @param view
      * @return
      */
-    private int getViewMaxOffsetDistanceToBottom(ScrollingView view){
+    private int getViewMaxOffsetDistanceToBottom(ScrollingView view) {
         int distance = view.computeVerticalScrollRange() - view.computeVerticalScrollOffset();
         View v = (View) view;
         distance -= v.getHeight() - (v.getPaddingTop() + v.getPaddingBottom());
@@ -327,6 +322,8 @@ public class MultiNestedParentLayout extends LinearLayout implements
     }
 
     private void virtualScrollBy(int dy) {
+        if (dy == 0)
+            return;
         scrollBy(0, dy);
         virtualOffsetY += dy;
     }
@@ -338,9 +335,11 @@ public class MultiNestedParentLayout extends LinearLayout implements
      * @param scrollingView
      */
     private void virtualScrollBy(int dy, ScrollingView scrollingView) {
+        if (dy == 0)
+            return;
         View view = (View) scrollingView;
         view.setNestedScrollingEnabled(false);
-        view.scrollBy(0,dy);
+        view.scrollBy(0, dy);
         view.setNestedScrollingEnabled(true);
         virtualOffsetY += dy;
     }
@@ -364,7 +363,7 @@ public class MultiNestedParentLayout extends LinearLayout implements
      */
     private int viewToTopDistance(View view) {
         final int top = getPaddingTop();
-        return view.getTop() + getScrollY() - top;
+        return top - view.getTop() + getScrollY();
     }
 
     /**
@@ -416,7 +415,7 @@ public class MultiNestedParentLayout extends LinearLayout implements
 
     private int scrollRange;
 
-    private int getScrollRange(){
+    private int getScrollRange() {
         return scrollRange;
     }
 
